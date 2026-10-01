@@ -1,0 +1,8 @@
+.env
+.env.*
+.vercel
+test
+docs
+examples
+output.png
+render-output.*

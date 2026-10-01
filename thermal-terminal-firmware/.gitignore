@@ -1,0 +1,6 @@
+/build/
+/build-idf/
+/sdkconfig
+/sdkconfig.old
+/managed_components/
+/.cache/

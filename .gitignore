@@ -1,0 +1,16 @@
+.vercel/
+.env*
+!.env.example
+
+**/node_modules/
+**/.wrangler/
+**/build/
+**/build-idf/
+**/managed_components/
+**/.cache/
+**/__pycache__/
+**/*.py[cod]
+
+**/response.*
+thermal-renderer/assets/chromium/
+thermal-renderer/assets/katex/

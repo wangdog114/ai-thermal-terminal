@@ -1,0 +1,5 @@
+TERMINAL_TOKEN=replace-with-a-long-random-token
+RENDER_URL=https://thermal-renderer.example.vercel.app
+RENDER_TOKEN=replace-with-vercel-render-token
+DEFAULT_SELECTION=OpenAI:gpt-5.4-mini
+# PROVIDERS={"OpenAI":{"base_url":"https://api.openai.com/v1","models":[{"name":"gpt-5.4-mini","api_type":"responses"}],"api_key":"..."}}

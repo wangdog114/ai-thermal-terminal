@@ -1,0 +1,11 @@
+name = "thermal-terminal-worker"
+main = "src/index.js"
+compatibility_date = "2025-04-01"
+
+[placement]
+region = "aws:ap-northeast-3"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ai-chat-sessions"
+database_id = "0d6f891e-51d0-4413-bb97-79bf74eee962"

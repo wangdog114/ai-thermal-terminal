@@ -1,0 +1,29 @@
+{
+  "name": "thermal-markdown-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "serve": "vercel dev --listen 3000",
+    "prepare:katex": "node scripts/prepare-katex-assets.mjs",
+    "prepare:chromium": "node scripts/prepare-chromium-assets.mjs",
+    "prepare:assets": "npm run prepare:katex && npm run prepare:chromium",
+    "postinstall": "npm run prepare:assets",
+    "test": "node --test test/*.test.js",
+    "test:e2e": "node scripts/test-render.mjs",
+    "test:render": "node scripts/test-render.mjs"
+  },
+  "dependencies": {
+    "@sparticuz/chromium": "153.0.0",
+    "katex": "0.18.7",
+    "markdown-it": "15.0.2",
+    "puppeteer-core": "25.10.0",
+    "sharp": "0.35.4"
+  },
+  "devDependencies": {
+    "vercel": "59.16.0"
+  }
+}
