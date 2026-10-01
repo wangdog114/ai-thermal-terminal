@@ -323,6 +323,58 @@ void test_dictionary_candidate_scroll() {
   }
 }
 
+void test_dictionary_selection_crosses_pages() {
+  using thermal_terminal::LogicalKey;
+  thermal_terminal::EnglishDictionary dictionary;
+  assert(dictionary.initialize("../../assets/en.t9"));
+
+  for (const std::size_t target : {4U, 8U, 12U}) {
+    thermal_terminal::TerminalUi ui;
+    ui.set_dictionary(&dictionary);
+    thermal_terminal::UserSettings settings;
+    const std::vector<thermal_terminal::ModelInfo> models;
+    thermal_terminal::KeyEvent event;
+    auto press = [&](LogicalKey key) {
+      event.key = key;
+      event.command = 0;
+      event.repeat = false;
+      ui.on_key(event, 0, settings, models, false, 0);
+    };
+    press(LogicalKey::kConfirm);
+    for (int i = 0; i < 4; ++i)
+      press(LogicalKey::kPrint);
+    press(LogicalKey::kDigit4);
+    assert(ui.dictionary_candidate_count() > target);
+    const std::string expected = ui.dictionary_candidate(target);
+    for (std::size_t i = 0; i < target; ++i)
+      press(LogicalKey::kDown);
+    press(LogicalKey::kUp);
+    press(LogicalKey::kDown);
+    press(LogicalKey::kConfirm);
+    assert(ui.draft() == expected);
+  }
+
+  thermal_terminal::TerminalUi ui;
+  ui.set_dictionary(&dictionary);
+  thermal_terminal::UserSettings settings;
+  const std::vector<thermal_terminal::ModelInfo> models;
+  thermal_terminal::KeyEvent event;
+  auto press = [&](LogicalKey key) {
+    event.key = key;
+    event.command = 0;
+    event.repeat = false;
+    ui.on_key(event, 0, settings, models, false, 0);
+  };
+  press(LogicalKey::kConfirm);
+  for (int i = 0; i < 4; ++i)
+    press(LogicalKey::kPrint);
+  press(LogicalKey::kDigit4);
+  const auto last = ui.dictionary_candidate(ui.dictionary_candidate_count() - 1);
+  press(LogicalKey::kUp);
+  press(LogicalKey::kConfirm);
+  assert(ui.draft() == last);
+}
+
 void test_repeated_backspace_does_not_move_cursor() {
   thermal_terminal::TerminalUi ui;
   thermal_terminal::UserSettings settings;
@@ -716,6 +768,7 @@ int main() {
   test_retry_long_press();
   test_dictionary_input();
   test_dictionary_candidate_scroll();
+  test_dictionary_selection_crosses_pages();
   test_repeated_backspace_does_not_move_cursor();
   test_compose_modes_and_cursor();
   test_stroke_input_and_language();

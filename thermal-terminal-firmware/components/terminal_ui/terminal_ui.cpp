@@ -570,20 +570,15 @@ void TerminalUi::handle_dictionary_key(LogicalKey key, std::uint64_t now_ms) {
     }
   } else if (key == LogicalKey::kUp || key == LogicalKey::kDown) {
     constexpr std::size_t kPageSize = 4;
-    const auto page_start = dictionary_candidate_page_ * kPageSize;
-    const auto page_count = std::min(
-        kPageSize, dictionary_candidates_.size() > page_start
-                       ? dictionary_candidates_.size() - page_start
-                       : 0U);
-    if (page_count != 0) {
-      if (key == LogicalKey::kUp)
-        dictionary_candidate_selection_ =
-            dictionary_candidate_selection_ == 0
-                ? page_count - 1
-                : dictionary_candidate_selection_ - 1;
-      else
-        dictionary_candidate_selection_ =
-            (dictionary_candidate_selection_ + 1) % page_count;
+    const auto count = dictionary_candidates_.size();
+    if (count != 0) {
+      const auto index = dictionary_candidate_page_ * kPageSize +
+                         dictionary_candidate_selection_;
+      const auto next = key == LogicalKey::kUp
+                            ? (index + count - 1) % count
+                            : (index + 1) % count;
+      dictionary_candidate_page_ = next / kPageSize;
+      dictionary_candidate_selection_ = next % kPageSize;
     }
   } else if (key == LogicalKey::kLeft || key == LogicalKey::kRight) {
     constexpr std::size_t kPageSize = 4;
