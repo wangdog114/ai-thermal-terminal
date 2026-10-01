@@ -20,6 +20,30 @@ function bayerPixel(value, x, y) {
   return value < threshold;
 }
 
+function hasOppositeInk(data, width, height, x, y, threshold) {
+  for (const [dx, dy] of [
+    [1, 0], [0, 1], [1, 1], [1, -1]
+  ]) {
+    const leftX = x - dx;
+    const leftY = y - dy;
+    const rightX = x + dx;
+    const rightY = y + dy;
+
+    if (
+      leftX >= 0 && leftX < width &&
+      rightX >= 0 && rightX < width &&
+      leftY >= 0 && leftY < height &&
+      rightY >= 0 && rightY < height &&
+      data[leftY * width + leftX] <= threshold &&
+      data[rightY * width + rightX] <= threshold
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /*
  * 输出格式：
  *
@@ -65,6 +89,11 @@ export async function pngToMonoBitmap(
     rowBytes * expectedHeight,
     0
   );
+  const threshold = options.threshold;
+  // At small font sizes antialiased one-pixel joins can be lighter than the
+  // threshold. Restore only those bounded joins instead of raising the
+  // threshold for the whole page, which would make every glyph heavier.
+  const rescueLimit = Math.min(240, threshold + 48);
 
   for (let y = 0; y < expectedHeight; y++) {
     const sourceRow = y * expectedWidth;
@@ -76,10 +105,12 @@ export async function pngToMonoBitmap(
       const black =
         options.dither === "bayer4"
           ? bayerPixel(grayscale, x, y)
-          : thresholdPixel(
-              grayscale,
-              options.threshold
-            );
+          : thresholdPixel(grayscale, threshold) ||
+            (grayscale <= rescueLimit &&
+              hasOppositeInk(
+                data, expectedWidth, expectedHeight,
+                x, y, threshold
+              ));
 
       if (black) {
         bitmap[targetRow + (x >> 3)] |=
@@ -93,4 +124,3 @@ export async function pngToMonoBitmap(
     rowBytes
   };
 }
-
