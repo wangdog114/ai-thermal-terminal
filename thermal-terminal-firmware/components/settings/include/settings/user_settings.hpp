@@ -30,6 +30,7 @@ struct UserSettings {
   std::string model_id{"OpenAI:gpt-5.4-mini"};
   std::uint8_t reasoning_level{0};
   bool use_context{true};
+  bool use_https{true};
   UiLanguage ui_language{UiLanguage::kEnglish};
   RenderSettings render;
   PrinterSettings printer;
@@ -48,5 +49,6 @@ struct SessionSettings {
 };
 
 void normalize_settings(UserSettings &settings);
+std::string worker_url_for_protocol(const std::string &url, bool use_https);
 
 } // namespace thermal_terminal

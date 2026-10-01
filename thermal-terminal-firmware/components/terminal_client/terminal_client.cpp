@@ -154,7 +154,10 @@ ClientResult perform_request(const NetworkSettings &network, const char *path,
   config.timeout_ms = 120000;
   config.buffer_size = 4096;
   config.buffer_size_tx = 4096;
-  config.crt_bundle_attach = esp_crt_bundle_attach;
+  config.crt_bundle_attach =
+      network.worker_url.compare(0, 8, "https://") == 0
+          ? esp_crt_bundle_attach
+          : nullptr;
 
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (client == nullptr)
@@ -211,8 +214,11 @@ void add_common_request(cJSON *root, const RequestOptions &request) {
 
 } // namespace
 
-HttpTerminalClient::HttpTerminalClient(const NetworkSettings &network)
-    : network_(network) {}
+HttpTerminalClient::HttpTerminalClient(const NetworkSettings &network,
+                                       bool use_https)
+    : network_(network) {
+  network_.worker_url = worker_url_for_protocol(network.worker_url, use_https);
+}
 
 ClientResult HttpTerminalClient::send(const SendRequest &request,
                                       tpb1::Sink &bitmap_sink,
@@ -296,7 +302,10 @@ ClientResult HttpTerminalClient::clear_history(const std::string &session_id,
   config.user_data = &context;
   config.timeout_ms = 30000;
   config.buffer_size = 2048;
-  config.crt_bundle_attach = esp_crt_bundle_attach;
+  config.crt_bundle_attach =
+      network_.worker_url.compare(0, 8, "https://") == 0
+          ? esp_crt_bundle_attach
+          : nullptr;
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (client == nullptr)
     return {false, 0, "HTTP_INIT_FAILED", "HTTP client init failed"};
@@ -341,7 +350,10 @@ ClientResult HttpTerminalClient::fetch_models(const std::string &etag,
   config.user_data = &context;
   config.timeout_ms = 30000;
   config.buffer_size = 2048;
-  config.crt_bundle_attach = esp_crt_bundle_attach;
+  config.crt_bundle_attach =
+      network_.worker_url.compare(0, 8, "https://") == 0
+          ? esp_crt_bundle_attach
+          : nullptr;
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (client == nullptr)
     return {false, 0, "HTTP_INIT_FAILED", "HTTP client init failed"};
@@ -430,7 +442,10 @@ ClientResult HttpTerminalClient::fetch_history(
   config.user_data = &context;
   config.timeout_ms = 30000;
   config.buffer_size = 4096;
-  config.crt_bundle_attach = esp_crt_bundle_attach;
+  config.crt_bundle_attach =
+      network_.worker_url.compare(0, 8, "https://") == 0
+          ? esp_crt_bundle_attach
+          : nullptr;
   esp_http_client_handle_t client = esp_http_client_init(&config);
   if (client == nullptr)
     return {false, 0, "HTTP_INIT_FAILED", "HTTP client init failed"};

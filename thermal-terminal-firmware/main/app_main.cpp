@@ -116,7 +116,8 @@ void print_error(const thermal_terminal::ClientResult &result) {
 bool load_models() {
   if (!require_network())
     return false;
-  thermal_terminal::HttpTerminalClient client(*s_runtime->network);
+  thermal_terminal::HttpTerminalClient client(*s_runtime->network,
+                                              s_settings.use_https);
   std::string default_model;
   std::string response_etag;
   std::vector<thermal_terminal::ModelInfo> models;
@@ -158,7 +159,9 @@ int cmd_status(int, char **) {
   if (s_runtime == nullptr)
     return 1;
   printf("wifi_ssid=%s\n", s_runtime->network->ssid.c_str());
-  printf("worker_url=%s\n", s_runtime->network->worker_url.c_str());
+  printf("worker_url=%s\n",
+         thermal_terminal::worker_url_for_protocol(
+             s_runtime->network->worker_url, s_settings.use_https).c_str());
   printf("worker_token=%s\n",
          s_runtime->network->terminal_token.empty() ? "not-set" : "set");
   printf("wifi_connected=%s\n", s_runtime->wifi->connected() ? "yes" : "no");
@@ -191,8 +194,16 @@ int cmd_set_worker(int argc, char **argv) {
   }
   s_runtime->network->worker_url = argv[1];
   s_runtime->network->terminal_token = argv[2];
+  const bool explicit_https = s_runtime->network->worker_url.compare(0, 8, "https://") == 0;
+  const bool explicit_http = s_runtime->network->worker_url.compare(0, 7, "http://") == 0;
+  if (explicit_https || explicit_http)
+    s_settings.use_https = explicit_https;
   if (!s_runtime->store->save_network(*s_runtime->network)) {
     printf("failed to save Worker configuration\n");
+    return 1;
+  }
+  if ((explicit_https || explicit_http) && !s_runtime->store->save_user(s_settings)) {
+    printf("failed to save HTTPS setting\n");
     return 1;
   }
   printf("Worker configuration saved\n");
@@ -242,7 +253,7 @@ int cmd_ask(int argc, char **argv) {
   s_bitmap.reset();
   printf("Sending to %s; waiting for TPB1...\n", request.model_id.c_str());
   fflush(stdout);
-  thermal_terminal::HttpTerminalClient client(s_network);
+  thermal_terminal::HttpTerminalClient client(s_network, s_settings.use_https);
   thermal_terminal::BinaryResponseMetadata metadata;
   const auto result = client.send(request, s_bitmap, metadata);
   if (!result.ok || !s_bitmap.ready()) {
@@ -281,7 +292,7 @@ int cmd_show_last(int, char **) {
     printf("No session ID yet\n");
     return 1;
   }
-  thermal_terminal::HttpTerminalClient client(s_network);
+  thermal_terminal::HttpTerminalClient client(s_network, s_settings.use_https);
   std::vector<thermal_terminal::HistoryMessage> messages;
   std::string next_cursor;
   const auto history =
@@ -569,7 +580,7 @@ int cmd_history(int, char **) {
     printf("No session ID yet\n");
     return 1;
   }
-  thermal_terminal::HttpTerminalClient client(s_network);
+  thermal_terminal::HttpTerminalClient client(s_network, s_settings.use_https);
   std::vector<thermal_terminal::HistoryMessage> messages;
   std::string next_cursor;
   const auto result =
@@ -677,7 +688,7 @@ void handle_ui_action(thermal_terminal::UiAction action) {
     request.reasoning_level = s_settings.reasoning_level;
     request.use_context = s_settings.use_context;
     request.render = s_settings.render;
-    thermal_terminal::HttpTerminalClient client(s_network);
+    thermal_terminal::HttpTerminalClient client(s_network, s_settings.use_https);
     thermal_terminal::BinaryResponseMetadata metadata;
     const auto result = client.retry(request, s_bitmap, metadata);
     if (result.ok && s_bitmap.ready()) {
@@ -707,7 +718,7 @@ void handle_ui_action(thermal_terminal::UiAction action) {
     const std::string before = append ? s_ui.next_cursor() : "";
     s_ui.show_notice("LOADING...");
     draw_ui();
-    thermal_terminal::HttpTerminalClient client(s_network);
+    thermal_terminal::HttpTerminalClient client(s_network, s_settings.use_https);
     std::vector<thermal_terminal::HistoryMessage> messages;
     std::string next_cursor;
     const auto result = client.fetch_history(s_session.session_id, before,
@@ -728,7 +739,7 @@ void handle_ui_action(thermal_terminal::UiAction action) {
     s_ui.show_notice("RENDERING...");
     draw_ui();
     s_bitmap.reset();
-    thermal_terminal::HttpTerminalClient client(s_network);
+    thermal_terminal::HttpTerminalClient client(s_network, s_settings.use_https);
     thermal_terminal::BinaryResponseMetadata metadata;
     const auto result = client.render_message(s_session.session_id, message_id,
                                               s_settings.render, s_bitmap, metadata);
@@ -750,7 +761,7 @@ void handle_ui_action(thermal_terminal::UiAction action) {
     }
     s_ui.show_notice("CLEARING...");
     draw_ui();
-    thermal_terminal::HttpTerminalClient client(s_network);
+    thermal_terminal::HttpTerminalClient client(s_network, s_settings.use_https);
     std::uint32_t deleted = 0;
     const auto result = client.clear_history(s_session.session_id, deleted);
     if (result.ok) {

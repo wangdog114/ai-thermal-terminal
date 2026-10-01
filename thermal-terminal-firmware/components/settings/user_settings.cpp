@@ -17,4 +17,15 @@ void normalize_settings(UserSettings &settings) {
       std::clamp<std::uint16_t>(settings.render.band_height, 32, 1024);
 }
 
+std::string worker_url_for_protocol(const std::string &url, bool use_https) {
+  if (url.empty())
+    return {};
+  std::string host = url;
+  if (host.compare(0, 8, "https://") == 0)
+    host.erase(0, 8);
+  else if (host.compare(0, 7, "http://") == 0)
+    host.erase(0, 7);
+  return (use_https ? "https://" : "http://") + host;
+}
+
 } // namespace thermal_terminal

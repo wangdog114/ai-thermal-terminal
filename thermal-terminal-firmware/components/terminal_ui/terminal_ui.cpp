@@ -30,9 +30,10 @@ constexpr const char *kHomeItems[] = {"COMPOSE", "HISTORY", "SETTINGS", "PREVIEW
 constexpr const char *kHomeItemsZh[] = {"编辑", "历史", "设置", "预览"};
 constexpr const char *kSettingNames[] = {
     "MODEL", "REASONING", "CONTEXT", "AUTO PRINT",
-    "FONT SIZE", "LINE SPACE", "PAPER FEED", "WIFI", "LANGUAGE"};
+    "FONT SIZE", "LINE SPACE", "PAPER FEED", "WIFI", "LANGUAGE", "HTTPS"};
 constexpr const char *kSettingNamesZh[] = {
-    "模型", "推理", "上下文", "自动打印", "字号", "行距", "走纸", "网络", "语言"};
+    "模型", "推理", "上下文", "自动打印", "字号", "行距", "走纸", "网络", "语言", "HTTPS"};
+constexpr std::size_t kSettingCount = sizeof(kSettingNames) / sizeof(kSettingNames[0]);
 
 const char *input_mode_name(InputMode mode, bool chinese) {
   if (chinese) {
@@ -678,16 +679,16 @@ const char *TerminalUi::stroke_candidate_text(std::size_t index) const {
 
 void TerminalUi::pan(LogicalKey key, std::uint32_t bitmap_height) {
   switch (key) {
-  case LogicalKey::kLeft:
+  case LogicalKey::kDigit4:
     preview_x_ = preview_x_ > 32 ? preview_x_ - 32 : 0;
     break;
-  case LogicalKey::kRight:
+  case LogicalKey::kDigit6:
     preview_x_ = std::min<std::uint16_t>(256, preview_x_ + 32);
     break;
-  case LogicalKey::kUp:
+  case LogicalKey::kDigit2:
     preview_y_ = preview_y_ > 32 ? preview_y_ - 32 : 0;
     break;
-  case LogicalKey::kDown:
+  case LogicalKey::kDigit8:
     preview_y_ = std::min<std::uint32_t>(
         bitmap_height > 64 ? bitmap_height - 64 : 0, preview_y_ + 32);
     break;
@@ -740,8 +741,12 @@ UiAction TerminalUi::on_key(const KeyEvent &event, std::uint64_t now_ms,
   if (is_text_entry() && !symbol_panel_ && event.repeat &&
       event.command == board_config::kEditSpaceCommand)
     return UiAction::kNone;
+  const bool preview_pan_key = screen_ == UiScreen::kPreview &&
+      (key == LogicalKey::kDigit2 || key == LogicalKey::kDigit8 ||
+       key == LogicalKey::kDigit4 || key == LogicalKey::kDigit6);
   if (event.repeat && key != LogicalKey::kUp && key != LogicalKey::kDown &&
-      key != LogicalKey::kLeft && key != LogicalKey::kRight)
+      key != LogicalKey::kLeft && key != LogicalKey::kRight &&
+      !preview_pan_key)
     return UiAction::kNone;
   if (is_text_entry() && symbol_panel_) {
     if (event.command == board_config::kEditSymbolsCommand ||
@@ -970,9 +975,9 @@ UiAction TerminalUi::on_key(const KeyEvent &event, std::uint64_t now_ms,
   case UiScreen::kSettings: {
     const auto old_selection = settings_selected_;
     if (key == LogicalKey::kUp)
-      settings_selected_ = settings_selected_ == 0 ? 8 : settings_selected_ - 1;
+      settings_selected_ = settings_selected_ == 0 ? kSettingCount - 1 : settings_selected_ - 1;
     else if (key == LogicalKey::kDown)
-      settings_selected_ = (settings_selected_ + 1) % 9;
+      settings_selected_ = (settings_selected_ + 1) % kSettingCount;
     if (old_selection != settings_selected_) {
       settings_name_scroll_ = 0;
       settings_name_scroll_at_ = now_ms;
@@ -1054,6 +1059,7 @@ UiAction TerminalUi::on_key(const KeyEvent &event, std::uint64_t now_ms,
                                    ? UiLanguage::kEnglish
                                    : UiLanguage::kChinese;
         break;
+      case 9: settings.use_https = !settings.use_https; break;
       }
       dirty_ = true;
       return UiAction::kSaveSettings;
@@ -1476,6 +1482,8 @@ void TerminalUi::render(BitmapWindow &canvas, bool wifi_connected,
     const auto start = settings_selected_ / page_size * page_size;
     for (std::size_t i = 0; i < page_size; ++i) {
       const auto index = start + i;
+      if (index >= kSettingCount)
+        break;
       const int y = chinese ? 16 + static_cast<int>(i) * 16
                             : 12 + static_cast<int>(i) * 10;
       if (index == 0) {
@@ -1530,6 +1538,8 @@ void TerminalUi::render(BitmapWindow &canvas, bool wifi_connected,
       case 8:
         value = settings.ui_language == UiLanguage::kChinese ? "中文" : "EN";
         break;
+      case 9: value = settings.use_https ? (chinese ? "开" : "ON")
+                                          : (chinese ? "关" : "OFF"); break;
       }
       std::snprintf(line, sizeof(line), "%s %s",
                     chinese ? kSettingNamesZh[index] : kSettingNames[index],
@@ -1538,11 +1548,15 @@ void TerminalUi::render(BitmapWindow &canvas, bool wifi_connected,
     }
     if (!chinese) {
       const auto page = settings_selected_ / page_size + 1;
-      std::snprintf(line, sizeof(line), "%u/3", static_cast<unsigned>(page));
+      const auto page_count = (kSettingCount + page_size - 1) / page_size;
+      std::snprintf(line, sizeof(line), "%u/%u", static_cast<unsigned>(page),
+                    static_cast<unsigned>(page_count));
       canvas.draw_text(3, 55, line);
     } else {
       const auto page = settings_selected_ / page_size + 1;
-      std::snprintf(line, sizeof(line), "%u/3", static_cast<unsigned>(page));
+      const auto page_count = (kSettingCount + page_size - 1) / page_size;
+      std::snprintf(line, sizeof(line), "%u/%u", static_cast<unsigned>(page),
+                    static_cast<unsigned>(page_count));
       canvas.draw_text(100, 4, line);
     }
     break;

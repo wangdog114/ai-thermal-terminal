@@ -85,6 +85,7 @@ bool SettingsStore::initialize() {
 bool SettingsStore::load(UserSettings &user, NetworkSettings &network,
                          SessionSettings &session) {
   nvs_handle_t handle{};
+  bool https_setting_saved = false;
   if (open_read(kUserNamespace, handle)) {
     std::uint8_t ui_language = static_cast<std::uint8_t>(user.ui_language);
     std::uint16_t line_height_hundredths =
@@ -92,6 +93,7 @@ bool SettingsStore::load(UserSettings &user, NetworkSettings &network,
     const bool ok = get_string(handle, "model", user.model_id) &&
                     get_u8(handle, "reasoning", user.reasoning_level) &&
                     get_bool(handle, "context", user.use_context) &&
+                    get_bool(handle, "use_https", user.use_https) &&
                     get_u8(handle, "ui_language", ui_language) &&
                     get_bool(handle, "auto_print", user.printer.auto_print) &&
                     get_u8(handle, "font_size", user.render.font_size) &&
@@ -99,6 +101,8 @@ bool SettingsStore::load(UserSettings &user, NetworkSettings &network,
                     get_u8(handle, "margin", user.render.margin) &&
                     get_u8(handle, "bottom_feed", user.render.bottom_feed) &&
                     get_u8(handle, "threshold", user.render.threshold);
+    std::uint8_t saved_https = 0;
+    https_setting_saved = nvs_get_u8(handle, "use_https", &saved_https) == ESP_OK;
     nvs_close(handle);
     if (!ok)
       return false;
@@ -116,6 +120,8 @@ bool SettingsStore::load(UserSettings &user, NetworkSettings &network,
     if (!ok)
       return false;
   }
+  if (!https_setting_saved && network.worker_url.compare(0, 7, "http://") == 0)
+    user.use_https = false;
   if (open_read(kSessionNamespace, handle)) {
     const bool ok =
         get_string(handle, "session_id", session.session_id) &&
@@ -135,6 +141,7 @@ bool SettingsStore::save_user(const UserSettings &user) {
   const bool ok = set_string(handle, "model", user.model_id) &&
                   set_u8(handle, "reasoning", user.reasoning_level) &&
                   set_bool(handle, "context", user.use_context) &&
+                  set_bool(handle, "use_https", user.use_https) &&
                   set_u8(handle, "ui_language", static_cast<std::uint8_t>(user.ui_language)) &&
                   set_bool(handle, "auto_print", user.printer.auto_print) &&
                   set_u8(handle, "font_size", user.render.font_size) &&

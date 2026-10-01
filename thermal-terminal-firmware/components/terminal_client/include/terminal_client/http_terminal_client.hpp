@@ -6,7 +6,7 @@ namespace thermal_terminal {
 
 class HttpTerminalClient final : public TerminalClient {
 public:
-  explicit HttpTerminalClient(const NetworkSettings &network);
+  HttpTerminalClient(const NetworkSettings &network, bool use_https);
 
   ClientResult fetch_models(const std::string &etag,
                             std::vector<ModelInfo> &models,

@@ -145,16 +145,31 @@ void test_terminal_ui() {
   event.key = thermal_terminal::LogicalKey::kConfirm;
   ui.on_key(event, 1500, settings, models, true, 200);
   assert(ui.screen() == thermal_terminal::UiScreen::kPreview);
-  event.key = thermal_terminal::LogicalKey::kRight;
+  event.key = thermal_terminal::LogicalKey::kDigit6;
   ui.on_key(event, 1600, settings, models, true, 200);
   assert(ui.preview_x() == 32);
+  event.key = thermal_terminal::LogicalKey::kRight;
+  ui.on_key(event, 1650, settings, models, true, 200);
+  assert(ui.preview_x() == 32);
+  event.key = thermal_terminal::LogicalKey::kDigit6;
   for (int i = 0; i < 12; ++i)
     ui.on_key(event, 1700 + i * 100, settings, models, true, 200);
   assert(ui.preview_x() == 256);
-  event.key = thermal_terminal::LogicalKey::kDown;
+  event.key = thermal_terminal::LogicalKey::kDigit8;
   for (int i = 0; i < 12; ++i)
     ui.on_key(event, 3000 + i * 100, settings, models, true, 200);
   assert(ui.preview_y() == 136);
+  event.key = thermal_terminal::LogicalKey::kDown;
+  ui.on_key(event, 4300, settings, models, true, 200);
+  assert(ui.preview_y() == 136);
+  event.key = thermal_terminal::LogicalKey::kDigit4;
+  event.repeat = true;
+  ui.on_key(event, 4400, settings, models, true, 200);
+  assert(ui.preview_x() == 224);
+  event.repeat = false;
+  event.key = thermal_terminal::LogicalKey::kDigit2;
+  ui.on_key(event, 4500, settings, models, true, 200);
+  assert(ui.preview_y() == 104);
   event.key = thermal_terminal::LogicalKey::kClear;
   ui.on_key(event, 5000, settings, models, true, 200);
   assert(ui.screen() == thermal_terminal::UiScreen::kConfirmClear);
@@ -659,6 +674,40 @@ void test_wifi_setup_ui_flow() {
   assert(ui.wifi_ssid() == "open-net" && ui.wifi_password().empty());
 }
 
+void test_https_setting_and_url() {
+  using thermal_terminal::LogicalKey;
+  using thermal_terminal::UiAction;
+  thermal_terminal::TerminalUi ui;
+  thermal_terminal::UserSettings settings;
+  const std::vector<thermal_terminal::ModelInfo> models;
+  thermal_terminal::KeyEvent event;
+  auto press = [&](LogicalKey key) {
+    event.key = key;
+    event.command = 0;
+    event.repeat = false;
+    return ui.on_key(event, 0, settings, models, false, 0);
+  };
+
+  assert(settings.use_https);
+  press(LogicalKey::kDown);
+  press(LogicalKey::kDown);
+  assert(press(LogicalKey::kConfirm) == UiAction::kLoadModels);
+  press(LogicalKey::kUp);
+  assert(press(LogicalKey::kConfirm) == UiAction::kSaveSettings);
+  assert(!settings.use_https);
+  assert(press(LogicalKey::kLeft) == UiAction::kSaveSettings);
+  assert(settings.use_https);
+
+  using thermal_terminal::worker_url_for_protocol;
+  assert(worker_url_for_protocol("https://example.com/api/", false) ==
+         "http://example.com/api/");
+  assert(worker_url_for_protocol("http://example.com:8787", true) ==
+         "https://example.com:8787");
+  assert(worker_url_for_protocol("example.com", false) ==
+         "http://example.com");
+  assert(worker_url_for_protocol("", true).empty());
+}
+
 int main() {
   test_preview_window();
   test_nec_frames();
@@ -672,4 +721,5 @@ int main() {
   test_stroke_input_and_language();
   test_utf8_cell_size_and_model_settings();
   test_wifi_setup_ui_flow();
+  test_https_setting_and_url();
 }
