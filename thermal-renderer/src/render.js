@@ -13,7 +13,11 @@ async function postProcessPage(page) {
     let formulasTooWide = 0;
 
     await document.fonts.load(
-      '22px "PrintCJK"',
+      '300 22px "PrintCJK"',
+      "中文字体测试"
+    );
+    await document.fonts.load(
+      '400 22px "PrintCJK"',
       "中文字体测试"
     );
     await document.fonts.ready;
@@ -97,10 +101,15 @@ async function postProcessPage(page) {
     });
 
     return {
-      fontReady: document.fonts.check(
-        '22px "PrintCJK"',
-        "中文字体测试"
-      ),
+      fontReady:
+        document.fonts.check(
+          '300 22px "PrintCJK"',
+          "中文字体测试"
+        ) &&
+        document.fonts.check(
+          '400 22px "PrintCJK"',
+          "中文字体测试"
+        ),
       formulasTooWide,
       minimumFormulaScale
     };

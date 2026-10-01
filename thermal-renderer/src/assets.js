@@ -26,13 +26,23 @@ const KATEX_CSS_PATH = path.join(
 
 const DEFAULT_PRINT_FONT_PATH = fileURLToPath(
   new URL(
-    "../assets/fonts/SourceHanSansSC-Regular.otf",
+    "../assets/fonts/SourceHanSansCN-Normal.otf",
+    import.meta.url
+  )
+);
+
+const DEFAULT_PRINT_LIGHT_FONT_PATH = fileURLToPath(
+  new URL(
+    "../assets/fonts/SourceHanSansCN-Light.otf",
     import.meta.url
   )
 );
 
 const configuredPrintFontPath =
   process.env.PRINT_FONT_PATH?.trim();
+
+const configuredPrintLightFontPath =
+  process.env.PRINT_LIGHT_FONT_PATH?.trim();
 
 const PRINT_FONT_PATH =
   configuredPrintFontPath
@@ -43,6 +53,16 @@ const PRINT_FONT_PATH =
           configuredPrintFontPath
         )
     : DEFAULT_PRINT_FONT_PATH;
+
+const PRINT_LIGHT_FONT_PATH =
+  configuredPrintLightFontPath
+    ? path.isAbsolute(configuredPrintLightFontPath)
+      ? configuredPrintLightFontPath
+      : path.resolve(
+          PROJECT_ROOT,
+          configuredPrintLightFontPath
+        )
+    : DEFAULT_PRINT_LIGHT_FONT_PATH;
 
 const assets = new Map();
 
@@ -220,11 +240,12 @@ function buildKatexCss() {
 }
 
 function buildPrintFontCss() {
-  if (!fs.existsSync(PRINT_FONT_PATH)) {
+  if (!fs.existsSync(PRINT_FONT_PATH) ||
+      !fs.existsSync(PRINT_LIGHT_FONT_PATH)) {
     throw createAssetError(
-      `找不到中文打印字体：${PRINT_FONT_PATH}。` +
+      `找不到中文打印字体：${PRINT_FONT_PATH} 或 ${PRINT_LIGHT_FONT_PATH}。` +
       `请将字体放入 assets/fonts/，` +
-      `或者设置 PRINT_FONT_PATH。`,
+      `或者设置 PRINT_FONT_PATH / PRINT_LIGHT_FONT_PATH。`,
       "PRINT_FONT_MISSING"
     );
   }
@@ -232,13 +253,29 @@ function buildPrintFontCss() {
   const printFontUrl =
     `${LOCAL_ASSET_ORIGIN}/fonts/print-font` +
     path.extname(PRINT_FONT_PATH).toLowerCase();
+  const printLightFontUrl =
+    `${LOCAL_ASSET_ORIGIN}/fonts/print-light-font` +
+    path.extname(PRINT_LIGHT_FONT_PATH).toLowerCase();
 
   addAsset(
     printFontUrl,
     PRINT_FONT_PATH
   );
+  addAsset(
+    printLightFontUrl,
+    PRINT_LIGHT_FONT_PATH
+  );
 
   return `
+@font-face {
+  font-family: "PrintCJK";
+  src:
+    url("${printLightFontUrl}")
+    format("${fontFormatForFile(PRINT_LIGHT_FONT_PATH)}");
+  font-style: normal;
+  font-weight: 300;
+  font-display: block;
+}
 @font-face {
   font-family: "PrintCJK";
   src:
@@ -294,6 +331,8 @@ export function getAssetStatus() {
       ready: true,
       printFontPath: PRINT_FONT_PATH,
       printFontExists: true,
+      printLightFontPath: PRINT_LIGHT_FONT_PATH,
+      printLightFontExists: true,
       katexCssPath: KATEX_CSS_PATH,
       katexCssExists: true,
       assetCount: assets.size,
@@ -305,6 +344,9 @@ export function getAssetStatus() {
       printFontPath: PRINT_FONT_PATH,
       printFontExists:
         fs.existsSync(PRINT_FONT_PATH),
+      printLightFontPath: PRINT_LIGHT_FONT_PATH,
+      printLightFontExists:
+        fs.existsSync(PRINT_LIGHT_FONT_PATH),
       katexCssPath: KATEX_CSS_PATH,
       katexCssExists:
         fs.existsSync(KATEX_CSS_PATH),
@@ -358,4 +400,3 @@ export async function installAssetInterceptor(
     ).catch(() => {});
   });
 }
-

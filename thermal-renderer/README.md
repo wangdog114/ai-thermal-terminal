@@ -49,6 +49,13 @@ TPB1 的字段定义见 [docs/tpb1.md](docs/tpb1.md)。
 可读范围内自动缩放。若公式过宽导致缩放比例低于 55%，接口返回
 `FORMULA_TOO_WIDE`（HTTP 422）；Worker 应让模型把公式拆成多行后重试。
 
+默认打印字体为思源黑体 Light（正文）和 Normal（标题、加粗），
+不使用浏览器合成粗体。可分别通过 `PRINT_LIGHT_FONT_PATH` 和
+`PRINT_FONT_PATH` 指定其他字体文件；所附字体的授权见
+`assets/fonts/OFL.txt`。若 Vercel 已设置旧版
+`PRINT_FONT_PATH=assets/fonts/SourceHanSansSC-Regular.otf`，请改为
+`assets/fonts/SourceHanSansCN-Normal.otf` 或移除该环境变量。
+
 ## 验证
 
 ```sh

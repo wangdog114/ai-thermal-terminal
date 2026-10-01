@@ -63,8 +63,8 @@ body {
     sans-serif;
   font-size: ${fontSize}px;
   line-height: ${lineHeight};
-  font-weight: 400;
-  font-synthesis: weight;
+  font-weight: 300;
+  font-synthesis: none;
   text-rendering: optimizeLegibility;
   overflow-wrap: anywhere;
   word-break: normal;
@@ -94,7 +94,7 @@ h6 {
     0.35em;
   padding: 0;
   line-height: 1.2;
-  font-weight: 700;
+  font-weight: 400;
   overflow-wrap: anywhere;
 }
 
@@ -132,7 +132,7 @@ p {
 
 strong,
 b {
-  font-weight: 700;
+  font-weight: 400;
 }
 
 ul,
@@ -219,7 +219,7 @@ td {
 }
 
 th {
-  font-weight: 700;
+  font-weight: 400;
   border-bottom-width: 2px;
 }
 
