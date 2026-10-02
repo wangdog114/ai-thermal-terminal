@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdint>
@@ -565,6 +566,75 @@ void test_stroke_input_and_language() {
   assert(settings.ui_language == thermal_terminal::UiLanguage::kEnglish);
 }
 
+void test_space_and_newline_input() {
+  using thermal_terminal::InputMode;
+  using thermal_terminal::LogicalKey;
+  thermal_terminal::TerminalUi ui;
+  thermal_terminal::UserSettings settings;
+  const std::vector<thermal_terminal::ModelInfo> models;
+  thermal_terminal::KeyEvent event;
+  auto press = [&](LogicalKey key, std::uint64_t at) {
+    event.key = key;
+    event.command = 0;
+    event.repeat = false;
+    ui.on_key(event, at, settings, models, false, 0);
+  };
+
+  press(LogicalKey::kConfirm, 0);
+  for (int i = 0; i < 3; ++i)
+    press(LogicalKey::kPrint, 10 + i);
+  assert(ui.input_mode() == InputMode::kStroke);
+  press(LogicalKey::kDigit2, 20);
+  assert(!ui.stroke_sequence().empty());
+  press(LogicalKey::kDigit0, 30);
+  press(LogicalKey::kDigit0, 40);
+  assert(ui.draft() == "  " && ui.cursor() == 2);
+  assert(ui.stroke_sequence().empty());
+
+  press(LogicalKey::kClear, 50);
+  assert(ui.symbol_panel());
+  press(LogicalKey::kLeft, 60);
+  press(LogicalKey::kConfirm, 70);
+  assert(ui.draft() == "  \n" && ui.cursor() == 3);
+  assert(!ui.symbol_panel());
+
+  press(LogicalKey::kDigit2, 80);
+  press(LogicalKey::kDigit5, 90);
+  press(LogicalKey::kDigit1, 100);
+  press(LogicalKey::kDigit2, 110);
+  press(LogicalKey::kConfirm, 120);
+  assert(ui.draft() == "  \n中");
+  thermal_terminal::BitmapWindow canvas;
+  ui.render(canvas, true, settings, models, false);
+  thermal_terminal::BitmapWindow expected_line;
+  expected_line.draw_utf8_text(3, 32, "中");
+  for (int y = 32; y < 46; ++y) {
+    for (int x = 3; x < 19; ++x) {
+      const auto offset = static_cast<std::size_t>(y / 8) * 128 + x;
+      const auto mask = static_cast<std::uint8_t>(1U << (y & 7));
+      assert((canvas.data()[offset] & mask) ==
+             (expected_line.data()[offset] & mask));
+    }
+  }
+  thermal_terminal::BitmapWindow arrow;
+  arrow.draw_utf8_text(0, 0, "↵");
+  assert(std::any_of(arrow.data().begin(), arrow.data().end(),
+                     [](std::uint8_t byte) { return byte != 0; }));
+
+  press(LogicalKey::kPrint, 130);
+  press(LogicalKey::kPrint, 140);
+  assert(ui.input_mode() == InputMode::kUpper);
+  press(LogicalKey::kClear, 150);
+  press(LogicalKey::kLeft, 160);
+  press(LogicalKey::kConfirm, 170);
+  assert(ui.draft() == "  \n中\n");
+  ui.render(canvas, true, settings, models, false);
+  event.key = LogicalKey::kUp;
+  event.command = thermal_terminal::board_config::kEditBackspaceCommand;
+  ui.on_key(event, 180, settings, models, false, 0);
+  assert(ui.draft() == "  \n中");
+}
+
 void test_utf8_cell_size_and_model_settings() {
   thermal_terminal::BitmapWindow canvas;
   canvas.draw_utf8_text(0, 0, "A", true, 7);
@@ -691,6 +761,10 @@ void test_wifi_setup_ui_flow() {
   press(LogicalKey::kConfirm, 50);
   assert(ui.screen() == UiScreen::kWifiPassword);
   assert(ui.wifi_ssid() == "locked-net");
+  press(LogicalKey::kClear, 51);
+  press(LogicalKey::kLeft, 52);
+  press(LogicalKey::kConfirm, 53);
+  assert(ui.wifi_password() == "^");
   press(LogicalKey::kMenu, 60);
   assert(ui.screen() == UiScreen::kWifiNetworks);
 
@@ -772,6 +846,7 @@ int main() {
   test_repeated_backspace_does_not_move_cursor();
   test_compose_modes_and_cursor();
   test_stroke_input_and_language();
+  test_space_and_newline_input();
   test_utf8_cell_size_and_model_settings();
   test_wifi_setup_ui_flow();
   test_https_setting_and_url();

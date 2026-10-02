@@ -23,9 +23,11 @@ constexpr const char *kNumericMultiTap[] = {
     "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
 constexpr const char kHalfWidthSymbols[] =
     ".,?!:;\"'()-_/@#%&*+=<>[]{}\\|~`^";
+constexpr std::size_t kHalfWidthSymbolCount = sizeof(kHalfWidthSymbols) - 1;
+constexpr const char kNewlineSymbol[] = "↵";
 constexpr const char *kFullWidthSymbols[] = {
     "，", "。", "？", "！", "：", "；", "（", "）", "、", "“", "”",
-    "《", "》", "【", "】", "＋", "－", "＝", "／", "％", "＆", "＊", "＃", "＠"};
+    "《", "》", "【", "】", "＋", "－", "＝", "／", "％", "＆", "＊", "＃", "＠", kNewlineSymbol};
 constexpr const char *kHomeItems[] = {"COMPOSE", "HISTORY", "SETTINGS", "PREVIEW"};
 constexpr const char *kHomeItemsZh[] = {"编辑", "历史", "设置", "预览"};
 constexpr const char *kSettingNames[] = {
@@ -58,12 +60,14 @@ const char *input_mode_name(InputMode mode, bool chinese) {
 std::size_t symbol_count(InputMode mode) {
   return mode == InputMode::kStroke
              ? sizeof(kFullWidthSymbols) / sizeof(kFullWidthSymbols[0])
-             : sizeof(kHalfWidthSymbols) - 1;
+             : kHalfWidthSymbolCount + 1;
 }
 
 const char *symbol_at(InputMode mode, std::size_t index) {
   if (mode == InputMode::kStroke)
     return kFullWidthSymbols[index % symbol_count(mode)];
+  if (index % symbol_count(mode) == symbol_count(mode) - 1)
+    return kNewlineSymbol;
   static char value[2];
   value[0] = kHalfWidthSymbols[index % symbol_count(mode)];
   value[1] = '\0';
@@ -148,11 +152,19 @@ std::size_t utf8_offset_cells(const std::string &text, std::size_t cells) {
   return offset;
 }
 
-std::size_t wrapped_line_end(const std::string &text, std::size_t start,
-                             int max_width) {
+struct DraftLine {
+  std::size_t start;
+  std::size_t end;
+  std::size_t next;
+};
+
+DraftLine wrapped_line(const std::string &text, std::size_t start,
+                       int max_width) {
   std::size_t end = start;
   int width = 0;
   while (end < text.size()) {
+    if (text[end] == '\n')
+      return {start, end, end + 1};
     const int cell_width = utf8_cell_width(static_cast<unsigned char>(text[end]));
     const auto next = next_utf8_boundary(text, end);
     if (width + cell_width > max_width && end > start)
@@ -160,7 +172,25 @@ std::size_t wrapped_line_end(const std::string &text, std::size_t start,
     width += cell_width;
     end = next;
   }
-  return end == start ? next_utf8_boundary(text, start) : end;
+  if (end == start && start < text.size())
+    end = next_utf8_boundary(text, start);
+  return {start, end, end};
+}
+
+std::vector<DraftLine> draft_lines(const std::string &text, int max_width) {
+  std::vector<DraftLine> lines;
+  std::size_t start = 0;
+  do {
+    const auto line = wrapped_line(text, start, max_width);
+    lines.push_back(line);
+    if (line.next >= text.size()) {
+      if (!text.empty() && text.back() == '\n')
+        lines.push_back({text.size(), text.size(), text.size()});
+      break;
+    }
+    start = line.next;
+  } while (true);
+  return lines;
 }
 
 std::string compact(const std::string &value, std::size_t limit) {
@@ -315,6 +345,11 @@ void TerminalUi::tick(std::uint64_t now_ms) {
 
 void TerminalUi::handle_digit(LogicalKey key, std::uint64_t now_ms) {
   if (screen_ == UiScreen::kCompose && input_mode_ == InputMode::kStroke) {
+    if (key == LogicalKey::kDigit0) {
+      clear_stroke_composition();
+      insert_text(' ');
+      return;
+    }
     handle_stroke_key(key);
     return;
   }
@@ -461,7 +496,8 @@ std::size_t &TerminalUi::active_cursor() {
 }
 
 void TerminalUi::handle_symbol_key(LogicalKey key) {
-  const std::size_t count = symbol_count(input_mode_);
+  const std::size_t count = symbol_count(input_mode_) -
+                            (screen_ == UiScreen::kWifiPassword ? 1U : 0U);
   const std::size_t columns = screen_ == UiScreen::kWifiPassword ? 16 : 8;
   if (key == LogicalKey::kLeft)
     symbol_selected_ = symbol_selected_ == 0 ? count - 1 : symbol_selected_ - 1;
@@ -477,7 +513,11 @@ void TerminalUi::handle_symbol_key(LogicalKey key) {
                            ? symbol_selected_ + columns
                            : symbol_selected_ % columns;
   else if (key == LogicalKey::kConfirm) {
-    insert_text(symbol_at(input_mode_, symbol_selected_));
+    if (screen_ == UiScreen::kCompose &&
+        symbol_selected_ == symbol_count(input_mode_) - 1)
+      insert_text('\n');
+    else
+      insert_text(symbol_at(input_mode_, symbol_selected_));
     symbol_panel_ = false;
   }
   else if (key == LogicalKey::kClear)
@@ -1186,7 +1226,9 @@ void TerminalUi::render(BitmapWindow &canvas, bool wifi_connected,
     const bool has_hanzi = std::any_of(draft_.begin(), draft_.end(),
                                       [](unsigned char ch) { return ch >= 0x80; });
     const bool large_layout = chinese || input_mode_ == InputMode::kStroke ||
-                              input_mode_ == InputMode::kDictionary || has_hanzi;
+                              input_mode_ == InputMode::kDictionary ||
+                              has_hanzi || symbol_panel_ ||
+                              draft_.find('\n') != std::string::npos;
     header(canvas, chinese ? "编辑" : "EDIT", large_layout);
     const int mode_x = chinese ? 38 : large_layout ? 44 : 78;
     if (chinese) {
@@ -1221,40 +1263,33 @@ void TerminalUi::render(BitmapWindow &canvas, bool wifi_connected,
 
     if (large_layout) {
       const auto visible_cursor = std::min(cursor_, draft_.size());
-      std::size_t previous_line_start = 0;
-      std::size_t cursor_line_start = 0;
-      std::size_t cursor_line_end = 0;
-      std::size_t line_start = 0;
-      std::size_t line_index = 0;
-      while (line_start < draft_.size()) {
-        const auto line_end = wrapped_line_end(draft_, line_start, 120);
-        if (visible_cursor < line_end ||
-            (visible_cursor == line_end && line_end == draft_.size())) {
-          cursor_line_start = line_start;
-          cursor_line_end = line_end;
+      const auto lines = draft_lines(draft_, 120);
+      std::size_t line_index = lines.size() - 1;
+      for (std::size_t i = 0; i < lines.size(); ++i) {
+        const auto &line = lines[i];
+        if (visible_cursor < line.end ||
+            (visible_cursor == line.end &&
+             (line.next > line.end || line.next == draft_.size()))) {
+          line_index = i;
           break;
         }
-        previous_line_start = line_start;
-        line_start = line_end;
-        ++line_index;
       }
-      const std::size_t first_line_start =
-          line_index == 0 ? cursor_line_start : previous_line_start;
-      const auto first_line_end =
-          first_line_start < draft_.size()
-              ? wrapped_line_end(draft_, first_line_start, 120)
-              : first_line_start;
-      canvas.draw_utf8_text(3, 16, draft_.c_str() + first_line_start, true, 120);
-      if (first_line_end < draft_.size()) {
-        canvas.draw_utf8_text(3, 32, draft_.c_str() + first_line_end, true, 120);
+      const auto first_line = line_index == 0 ? 0 : line_index - 1;
+      for (std::size_t i = first_line;
+           i < std::min(first_line + 2, lines.size()); ++i) {
+        const auto &line = lines[i];
+        canvas.draw_utf8_text(3, 16 + static_cast<int>(i - first_line) * 16,
+                              draft_.substr(line.start, line.end - line.start).c_str(),
+                              true, 120);
       }
-      const int cursor_row = line_index == 0 ? 0 : 1;
+      const auto &cursor_line = lines[line_index];
+      const int cursor_row = static_cast<int>(line_index - first_line);
       int cursor_x = 3;
-      for (auto i = cursor_line_start; i < visible_cursor;
+      for (auto i = cursor_line.start; i < visible_cursor;
            i = next_utf8_boundary(draft_, i))
         cursor_x += utf8_cell_width(static_cast<unsigned char>(draft_[i]));
-      if (cursor_visible_ && visible_cursor >= cursor_line_start &&
-          visible_cursor <= cursor_line_end)
+      if (cursor_visible_ && visible_cursor >= cursor_line.start &&
+          visible_cursor <= cursor_line.end)
         canvas.fill_rect(cursor_x, 30 + cursor_row * 16, 5, 1, true);
 
       if (symbol_panel_) {
@@ -1384,7 +1419,7 @@ void TerminalUi::render(BitmapWindow &canvas, bool wifi_connected,
       canvas.fill_rect(0, 48, 128, 16, true);
       constexpr std::size_t kVisibleSymbols = 16;
       const auto first = (symbol_selected_ / kVisibleSymbols) * kVisibleSymbols;
-      const auto count = symbol_count(input_mode_);
+      const auto count = symbol_count(input_mode_) - 1;
       for (std::size_t i = first;
            i < std::min(count, first + kVisibleSymbols); ++i) {
         const int x = static_cast<int>(i - first) * 8;
